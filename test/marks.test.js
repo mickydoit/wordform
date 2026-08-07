@@ -75,3 +75,69 @@ test('a fully-visible closed ring stays one closed strand', () => {
   assert.equal(strands.length, 1);
   assert.equal(strands[0].closed, true);
 });
+
+test('cutoff is relative per rule — weak rules survive alongside strong rules', () => {
+  // Create two simple paths with controlled amplitudes: one weak, one strong.
+  // They both span [0, 1] in x, but have different y to distinguish them.
+  const weak = new Float32Array(60 * 2);
+  for (let i = 0; i < 60; i++) {
+    weak[i * 2] = i / 60;     // x: 0 to 1
+    weak[i * 2 + 1] = 0.25;   // y constant (weak zone)
+  }
+  const strong = new Float32Array(60 * 2);
+  for (let i = 0; i < 60; i++) {
+    strong[i * 2] = i / 60;    // x: 0 to 1
+    strong[i * 2 + 1] = 0.75;  // y constant (strong zone)
+  }
+  const paths = [
+    { pts: weak, closed: false, index: 0 },
+    { pts: strong, closed: false, index: 1 },
+  ];
+
+  // Field amplitude depends on y:
+  // Weak zone (y=0.25): amplitude 0.01 to 0.15
+  // Strong zone (y=0.75): amplitude 0.5 to 0.9
+  const field = (x, y, t) => {
+    if (y < 0.5) return 0.01 + x * 0.14;  // weak: 0.01..0.15
+    return 0.5 + x * 0.4;                  // strong: 0.5..0.9
+  };
+
+  const strands = buildMarks(paths, field, DEFAULT_STYLE, 0);
+  const weakStrands = strands.filter(s => s.rule === 0);
+  const strongStrands = strands.filter(s => s.rule === 1);
+
+  // Both should produce strands (relative cutoff: weak max is ~0.15, cutoff is 0.12*0.15=0.018)
+  assert.ok(weakStrands.length > 0, 'weak rule should produce strands with relative cutoff');
+  assert.ok(strongStrands.length > 0, 'strong rule should produce strands');
+
+  // Both should cover most of their 60 samples (shows cutoff is per-rule, not global)
+  let weakCoverage = weakStrands.reduce((sum, s) => sum + s.pts.length / 2, 0);
+  assert.ok(weakCoverage > 30, `weak rule covers ${weakCoverage} of 60 (relative cutoff preserved)`);
+
+  let strongCoverage = strongStrands.reduce((sum, s) => sum + s.pts.length / 2, 0);
+  assert.ok(strongCoverage > 30, `strong rule covers ${strongCoverage} of 60`);
+});
+
+test('a partially-broken closed ring yields open arcs, not false closed strands', () => {
+  // Create a single concentric ring
+  const paths = concentricRuling({ count: 1, origin: [0.5, 0.5], rFrom: 0.2, rTo: 0.2, samples: 360 });
+
+  // Field creates a break on the right side: low amplitude there, high elsewhere.
+  // This breaks the ring in one section.
+  const field = (x, y, t) => {
+    // Distance from x=0.7 (right side)
+    const dist = Math.abs(x - 0.7);
+    if (dist < 0.15) return 0.02;  // break zone: below cutoff
+    return 0.5;                      // intact zone: above cutoff
+  };
+
+  const strands = buildMarks(paths, field, DEFAULT_STYLE, 0);
+
+  // Should produce at least one strand from the high-amplitude part
+  assert.ok(strands.length > 0, 'broken ring should produce strands');
+
+  // All strands must be open (closed: false) because the ring is broken
+  for (const s of strands) {
+    assert.equal(s.closed, false, 'partially-broken ring must yield open arcs, not closed');
+  }
+});
