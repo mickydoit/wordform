@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parallelRuling, concentricRuling } from '../js/ruling.js';
+import { streamlineRuling, rulingPaths } from '../js/ruling.js';
+import { makeField } from '../js/field.js';
+import { mulberry32 } from '../js/rand.js';
 
 test('parallelRuling produces the requested number of open paths', () => {
   const paths = parallelRuling({ count: 12, samples: 64, aspect: 1.6 });
@@ -58,4 +61,56 @@ test('a closed ring does not duplicate its first point', () => {
   const dx = ring.pts[0] - ring.pts[(n - 1) * 2];
   const dy = ring.pts[1] - ring.pts[(n - 1) * 2 + 1];
   assert.ok(Math.hypot(dx, dy) > 1e-6, 'closed paths carry the wrap implicitly, not as a repeated point');
+});
+
+const testField = () =>
+  makeField(
+    [
+      { x: 0.4, y: 0.5, amp: 1, k: 24, omega: 0, phase: 0 },
+      { x: 1.1, y: 0.45, amp: 1, k: 30, omega: 0, phase: 1.2 },
+    ],
+    0.4,
+  );
+
+test('streamlineRuling produces the requested number of open paths', () => {
+  const paths = streamlineRuling({ count: 10, samples: 50, aspect: 1.6 }, testField(), 0, mulberry32(3));
+  assert.equal(paths.length, 10);
+  for (const p of paths) {
+    assert.equal(p.closed, false);
+    assert.equal(p.pts.length, 100);
+  }
+});
+
+test('streamlines follow isolines — the field barely changes along one', () => {
+  const field = testField();
+  const [line] = streamlineRuling({ count: 1, samples: 60, aspect: 1.6, step: 0.002 }, field, 0, mulberry32(5));
+  const n = line.pts.length / 2;
+  const start = field(line.pts[0], line.pts[1], 0);
+  let worst = 0;
+  for (let i = 1; i < n; i++) {
+    worst = Math.max(worst, Math.abs(field(line.pts[i * 2], line.pts[i * 2 + 1], 0) - start));
+  }
+  assert.ok(worst < 0.15, `field drifted ${worst.toFixed(3)} along an isoline — following gradient, not isoline?`);
+});
+
+test('streamlines actually travel — they are not degenerate points', () => {
+  const paths = streamlineRuling({ count: 6, samples: 60, aspect: 1.6, step: 0.004 }, testField(), 0, mulberry32(9));
+  for (const p of paths) {
+    const n = p.pts.length / 2;
+    const travel = Math.hypot(p.pts[(n - 1) * 2] - p.pts[0], p.pts[(n - 1) * 2 + 1] - p.pts[1]);
+    assert.ok(travel > 0.01, 'a streamline collapsed to a point');
+  }
+});
+
+test('streamlineRuling is reproducible for the same seed', () => {
+  const mk = () => streamlineRuling({ count: 4, samples: 30, aspect: 1.6 }, testField(), 0, mulberry32(11));
+  assert.deepEqual(mk(), mk());
+});
+
+test('rulingPaths dispatches all three geometries and rejects unknown ones', () => {
+  const f = testField();
+  assert.equal(rulingPaths('parallel', { count: 3, samples: 8, aspect: 1.6 }, f, 0, mulberry32(1)).length, 3);
+  assert.equal(rulingPaths('concentric', { count: 4, samples: 8 }, f, 0, mulberry32(1)).length, 4);
+  assert.equal(rulingPaths('streamline', { count: 5, samples: 8, aspect: 1.6 }, f, 0, mulberry32(1)).length, 5);
+  assert.throws(() => rulingPaths('spiral', {}, f, 0, mulberry32(1)), /unknown ruling geometry/);
 });

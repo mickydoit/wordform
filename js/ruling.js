@@ -61,3 +61,56 @@ export function concentricRuling({
   }
   return paths;
 }
+
+/** Central-difference gradient of the field. */
+function gradient(field, x, y, t, h = 1e-3) {
+  return [
+    (field(x + h, y, t) - field(x - h, y, t)) / (2 * h),
+    (field(x, y + h, t) - field(x, y - h, t)) / (2 * h),
+  ];
+}
+
+/**
+ * Paths that trace ISOLINES of the field (perpendicular to its gradient).
+ * This is the caustic-veil look. Following the gradient instead gives
+ * radiating spokes, which is not what we want.
+ */
+export function streamlineRuling(
+  { count, samples = 256, aspect = 1, step = 0.004, seedSpread = 0.9 },
+  field,
+  t = 0,
+  rng,
+) {
+  const paths = [];
+  for (let i = 0; i < count; i++) {
+    let x = aspect * (0.5 + (rng() - 0.5) * seedSpread);
+    let y = 0.5 + (rng() - 0.5) * seedSpread;
+    const pts = new Float32Array(samples * 2);
+    for (let j = 0; j < samples; j++) {
+      pts[j * 2] = x;
+      pts[j * 2 + 1] = y;
+      const [gx, gy] = gradient(field, x, y, t);
+      const m = Math.hypot(gx, gy);
+      // A vanishing gradient means a flat patch; keep moving in a fixed
+      // direction rather than stalling into a degenerate point.
+      const [ux, uy] = m > 1e-9 ? [-gy / m, gx / m] : [1, 0];
+      x += ux * step;
+      y += uy * step;
+    }
+    paths.push({ pts, closed: false, index: i });
+  }
+  return paths;
+}
+
+export function rulingPaths(geometry, opts, field, t = 0, rng) {
+  switch (geometry) {
+    case 'parallel':
+      return parallelRuling(opts);
+    case 'concentric':
+      return concentricRuling(opts);
+    case 'streamline':
+      return streamlineRuling(opts, field, t, rng);
+    default:
+      throw new Error(`unknown ruling geometry: ${geometry}`);
+  }
+}
