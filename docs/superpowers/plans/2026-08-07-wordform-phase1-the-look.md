@@ -16,7 +16,7 @@
 - **All randomness goes through `mulberry32` from `rand.js`.** No `Math.random()` anywhere. Golden checksum tests depend on this.
 - **The strand run is the atomic unit** of both rendering and export. Never build separate export geometry.
 - **Tone constants must match across modules.** `TONE_LEVELS = 5` in `palette.js` is the single source; nothing else may hardcode a level count.
-- Test command is `npm test`, which runs `node --test test/`.
+- Test command is `npm test`, which runs `node --test 'test/**/*.js'`. (Node 25 rejects a bare directory argument — `node --test test/` fails with `Cannot find module`, so the glob is required.)
 - Commit after every task. Conventional commit prefixes (`feat:`, `test:`, `fix:`).
 
 ---
@@ -46,7 +46,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test 'test/**/*.js'"
   }
 }
 ```
