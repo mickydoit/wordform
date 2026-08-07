@@ -598,7 +598,10 @@ test('visibleRuns joins a run that wraps a closed path', () => {
 
 test('smoothing prevents shattering — the Soundform lesson', () => {
   const paths = concentricRuling({ count: 6, origin: [0.5, 0.5], rFrom: 0.1, rTo: 0.45, samples: 360 });
-  const field = makeField([{ x: 0.5, y: 0.5, amp: 1, k: 90, omega: 0, phase: 0 }], 0.3);
+  // The source is deliberately OFF the ring origin. Co-located, every point on a
+  // ring is equidistant from it, amplitude is constant to float precision, and
+  // nothing can shatter — the test would silently prove nothing.
+  const field = makeField([{ x: 0.78, y: 0.42, amp: 1, k: 90, omega: 0, phase: 0 }], 0.3);
   const smoothed = buildMarks(paths, field, DEFAULT_STYLE, 0);
   const raw = buildMarks(paths, field, { ...DEFAULT_STYLE, smoothWindow: 1 }, 0);
   assert.ok(raw.length > smoothed.length * 3,
