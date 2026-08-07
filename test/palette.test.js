@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RAMPS, TONE_LEVELS, toneClass, strokeStyle, background, rgb } from '../js/palette.js';
+import { RAMPS, TONE_LEVELS, TONE_WIDTHS, TONE_OPACITY, toneClass, strokeStyle, background, rgb } from '../js/palette.js';
 
 test('every ramp defines both colourways with TONE_LEVELS stops', () => {
   for (const [name, ramp] of Object.entries(RAMPS)) {
@@ -15,8 +15,23 @@ test('every ramp defines both colourways with TONE_LEVELS stops', () => {
 test('screen ramps run dark to light, print ramps run light to dark', () => {
   const lum = (hex) => { const [r, g, b] = rgb(hex); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
   for (const [name, ramp] of Object.entries(RAMPS)) {
-    assert.ok(lum(ramp.screen[4]) > lum(ramp.screen[0]) + 0.3, `${name} screen must brighten`);
-    assert.ok(lum(ramp.print[4]) < lum(ramp.print[0]) - 0.3, `${name} print must darken`);
+    // Check pairwise monotonicity: screen strictly increasing
+    for (let i = 0; i < TONE_LEVELS - 1; i++) {
+      const curr = lum(ramp.screen[i]);
+      const next = lum(ramp.screen[i + 1]);
+      assert.ok(next > curr, `${name} screen[${i}] -> screen[${i + 1}] must increase (${curr.toFixed(3)} -> ${next.toFixed(3)})`);
+    }
+    // Check pairwise monotonicity: print strictly decreasing
+    for (let i = 0; i < TONE_LEVELS - 1; i++) {
+      const curr = lum(ramp.print[i]);
+      const next = lum(ramp.print[i + 1]);
+      assert.ok(next < curr, `${name} print[${i}] -> print[${i + 1}] must decrease (${curr.toFixed(3)} -> ${next.toFixed(3)})`);
+    }
+    // End-to-end contrast check: screen must brighten sufficiently
+    assert.ok(lum(ramp.screen[TONE_LEVELS - 1]) > lum(ramp.screen[0]) + 0.3, `${name} screen must brighten end-to-end`);
+    // End-to-end contrast check: print must darken sufficiently
+    assert.ok(lum(ramp.print[TONE_LEVELS - 1]) < lum(ramp.print[0]) - 0.3, `${name} print must darken end-to-end`);
+    // Background requirements
     assert.ok(lum(ramp.bg.screen) < 0.1, `${name} screen bg must be near-black for projection`);
     assert.ok(lum(ramp.bg.print) > 0.85, `${name} print bg must be off-white`);
   }
@@ -38,6 +53,22 @@ test('strokeStyle brightens, thickens and opacifies with tone', () => {
   assert.notEqual(hi.color, lo.color);
   assert.equal(lo.toneClass, 0);
   assert.equal(hi.toneClass, TONE_LEVELS - 1);
+});
+
+test('TONE_WIDTHS increase monotonically', () => {
+  for (let i = 0; i < TONE_LEVELS - 1; i++) {
+    const curr = TONE_WIDTHS[i];
+    const next = TONE_WIDTHS[i + 1];
+    assert.ok(next > curr, `TONE_WIDTHS[${i}] -> TONE_WIDTHS[${i + 1}] must increase (${curr} -> ${next})`);
+  }
+});
+
+test('TONE_OPACITY increases monotonically', () => {
+  for (let i = 0; i < TONE_LEVELS - 1; i++) {
+    const curr = TONE_OPACITY[i];
+    const next = TONE_OPACITY[i + 1];
+    assert.ok(next > curr, `TONE_OPACITY[${i}] -> TONE_OPACITY[${i + 1}] must increase (${curr} -> ${next})`);
+  }
 });
 
 test('the two colourways differ for the same tone', () => {
