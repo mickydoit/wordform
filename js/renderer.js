@@ -58,6 +58,48 @@ function program(gl, vs, fs) {
   return p;
 }
 
+const POST_VERT = `#version 300 es
+precision highp float;
+in vec2 a_corner;
+out vec2 v_uv;
+void main() {
+  v_uv = a_corner;
+  gl_Position = vec4(a_corner * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+const POST_FRAG = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+uniform sampler2D u_scene;
+uniform vec2 u_texel;
+uniform float u_bloom;
+uniform float u_grain;
+uniform vec3 u_bg;
+out vec4 outColor;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+void main() {
+  vec3 base = texture(u_scene, v_uv).rgb;
+
+  // Cheap wide blur: 12 taps on two rings.
+  vec3 blur = vec3(0.0);
+  for (int i = 0; i < 12; i++) {
+    float a = float(i) * 0.5236;
+    float ring = i < 6 ? 3.0 : 7.0;
+    blur += texture(u_scene, v_uv + vec2(cos(a), sin(a)) * u_texel * ring).rgb;
+  }
+  blur /= 12.0;
+
+  vec3 col = base + blur * u_bloom;
+  // Grain: the chalk / risograph / stipple character of the references.
+  float n = hash(gl_FragCoord.xy) - 0.5;
+  col += n * u_grain * (0.25 + col);
+  outColor = vec4(max(col, u_bg), 1.0);
+}`;
+
 export function createRenderer(canvas) {
   const gl = canvas.getContext('webgl2', { antialias: true, alpha: false });
   if (!gl) throw new Error('WebGL2 is required and is not available');
@@ -96,9 +138,35 @@ export function createRenderer(canvas) {
   }
   gl.bindVertexArray(null);
 
+  const postProg = program(gl, POST_VERT, POST_FRAG);
+  const postVao = gl.createVertexArray();
+  gl.bindVertexArray(postVao);
+  const postQuad = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, postQuad);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+  const postCorner = gl.getAttribLocation(postProg, 'a_corner');
+  gl.enableVertexAttribArray(postCorner);
+  gl.vertexAttribPointer(postCorner, 2, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+
+  const fbo = gl.createFramebuffer();
+  const tex = gl.createTexture();
   let count = 0;
   let bg = [0, 0, 0];
   let aspect = 1;
+  let post = { bloom: 0.6, grain: 0.12 };
+
+  function allocTarget(w, h) {
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
 
   return {
     canvas,
@@ -132,24 +200,47 @@ export function createRenderer(canvas) {
       count = segs;
     },
 
+    setPost(next) {
+      post = { ...post, ...next };
+    },
+
     resize(w, h) {
       canvas.width = w;
       canvas.height = h;
-      gl.viewport(0, 0, w, h);
+      allocTarget(w, h);
     },
 
     draw() {
+      const { width: w, height: h } = canvas;
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.viewport(0, 0, w, h);
       gl.clearColor(bg[0], bg[1], bg[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
-      if (!count) return;
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE); // additive — light accumulates
-      gl.useProgram(prog);
-      gl.bindVertexArray(vao);
-      // Wall space (x 0..aspect, y 0..1) → clip space (-1..1).
-      gl.uniform2f(gl.getUniformLocation(prog, 'u_scale'), 2 / aspect, 2);
-      gl.uniform2f(gl.getUniformLocation(prog, 'u_offset'), -1, -1);
-      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
+      if (count) {
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE);
+        gl.useProgram(prog);
+        gl.bindVertexArray(vao);
+        gl.uniform2f(gl.getUniformLocation(prog, 'u_scale'), 2 / aspect, 2);
+        gl.uniform2f(gl.getUniformLocation(prog, 'u_offset'), -1, -1);
+        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
+        gl.bindVertexArray(null);
+      }
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, w, h);
+      gl.disable(gl.BLEND);
+      gl.useProgram(postProg);
+      gl.bindVertexArray(postVao);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(gl.getUniformLocation(postProg, 'u_scene'), 0);
+      gl.uniform2f(gl.getUniformLocation(postProg, 'u_texel'), 1 / w, 1 / h);
+      gl.uniform1f(gl.getUniformLocation(postProg, 'u_bloom'), post.bloom);
+      gl.uniform1f(gl.getUniformLocation(postProg, 'u_grain'), post.grain);
+      gl.uniform3f(gl.getUniformLocation(postProg, 'u_bg'), bg[0], bg[1], bg[2]);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       gl.bindVertexArray(null);
     },
   };
