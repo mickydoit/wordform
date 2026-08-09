@@ -16,7 +16,7 @@ function perpDistance(px, py, ax, ay, bx, by) {
   return Math.abs(dy * px - dx * py + bx * ay - by * ax) / len;
 }
 
-function rdp(pts, eps) {
+export function rdp(pts, eps) {
   const n = pts.length / 2;
   if (n < 3) return pts;
   const keep = new Uint8Array(n);

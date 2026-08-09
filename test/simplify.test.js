@@ -1,59 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { simplify } from '../js/simplify.js';
-
-// Internal test of rdp directly (for testing the perpDistance guard).
-// This is NOT exported; it's only used in this test file.
-function testRdpDirect(pts, eps) {
-  // Inline the perpDistance and rdp functions from simplify.js for direct testing
-  function perpDistance(px, py, ax, ay, bx, by) {
-    const dx = bx - ax;
-    const dy = by - ay;
-    const len = Math.hypot(dx, dy);
-    // GUARD PRESENT: if (len < 1e-12) return Math.hypot(px - ax, py - ay);
-    if (len < 1e-12) return Math.hypot(px - ax, py - ay);
-    return Math.abs(dy * px - dx * py + bx * ay - by * ax) / len;
-  }
-
-  function rdp(pts, eps) {
-    const n = pts.length / 2;
-    if (n < 3) return pts;
-    const keep = new Uint8Array(n);
-    keep[0] = 1;
-    keep[n - 1] = 1;
-    const stack = [[0, n - 1]];
-    while (stack.length) {
-      const [a, b] = stack.pop();
-      let worst = -1;
-      let worstAt = -1;
-      for (let i = a + 1; i < b; i++) {
-        const d = perpDistance(
-          pts[i * 2], pts[i * 2 + 1],
-          pts[a * 2], pts[a * 2 + 1],
-          pts[b * 2], pts[b * 2 + 1],
-        );
-        if (d > worst) { worst = d; worstAt = i; }
-      }
-      if (worst > eps && worstAt > 0) {
-        keep[worstAt] = 1;
-        stack.push([a, worstAt], [worstAt, b]);
-      }
-    }
-    let count = 0;
-    for (let i = 0; i < n; i++) count += keep[i];
-    const out = new Float32Array(count * 2);
-    let w = 0;
-    for (let i = 0; i < n; i++) {
-      if (!keep[i]) continue;
-      out[w * 2] = pts[i * 2];
-      out[w * 2 + 1] = pts[i * 2 + 1];
-      w++;
-    }
-    return out;
-  }
-
-  return rdp(pts, eps);
-}
+import { simplify, rdp } from '../js/simplify.js';
 
 const ring = (n, r = 1) => {
   const pts = new Float32Array(n * 2);
@@ -150,9 +97,8 @@ test('rdp on coincident endpoints does NOT collapse to 2 — the perpDistance gu
   // This is defensive against inputs no current caller generates (our generators
   // never produce coincident-endpoint paths), but necessary for simplify as a
   // general-purpose utility exposed to Task 7 and beyond.
-  const out = testRdpDirect(coincidentEndpointPath(), 0.02);
+  const out = rdp(coincidentEndpointPath(), 0.02);
   const npts = out.length / 2;
-  // MUTANT KILLABLE: with perpDistance guard removed, this would be 2
   assert.ok(npts > 2, `rdp collapsed to ${npts} points (guard failed to prevent collapse)`);
 });
 
