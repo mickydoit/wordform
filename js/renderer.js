@@ -84,11 +84,11 @@ float hash(vec2 p) {
 void main() {
   vec3 base = texture(u_scene, v_uv).rgb;
 
-  // Cheap wide blur: 12 taps on two rings.
+  // Cheap wide blur: 12 taps alternating between two radii, full 360° coverage each.
   vec3 blur = vec3(0.0);
   for (int i = 0; i < 12; i++) {
     float a = float(i) * 0.5236;
-    float ring = i < 6 ? 3.0 : 7.0;
+    float ring = (i % 2 == 0) ? 3.0 : 7.0;
     blur += texture(u_scene, v_uv + vec2(cos(a), sin(a)) * u_texel * ring).rgb;
   }
   blur /= 12.0;
