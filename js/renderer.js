@@ -176,18 +176,25 @@ export function createRenderer(canvas) {
       aspect = a;
       bg = rgb(background(ramp, 'screen'));
       let segs = 0;
-      for (const s of strands) segs += Math.max(0, s.pts.length / 2 - 1);
+      for (const s of strands) {
+        const n = s.pts.length / 2;
+        if (n < 2) continue;
+        segs += s.closed ? n : n - 1;
+      }
       const data = new Float32Array(segs * 9);
       let w = 0;
       for (const s of strands) {
         const style = strokeStyle(ramp, s.tone, 'screen');
         const [r, g, b] = rgb(style.color);
         const n = s.pts.length / 2;
-        for (let i = 0; i < n - 1; i++) {
+        if (n < 2) continue;
+        const segCount = s.closed ? n : n - 1;
+        for (let i = 0; i < segCount; i++) {
+          const j = (i + 1) % n;
           data[w++] = s.pts[i * 2];
           data[w++] = s.pts[i * 2 + 1];
-          data[w++] = s.pts[(i + 1) * 2];
-          data[w++] = s.pts[(i + 1) * 2 + 1];
+          data[w++] = s.pts[j * 2];
+          data[w++] = s.pts[j * 2 + 1];
           data[w++] = style.width * strokeScale;
           data[w++] = r;
           data[w++] = g;
