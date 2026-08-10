@@ -24,10 +24,15 @@ export function parallelRuling({
   const dy = Math.sin(angle);
   const nx = -dy;
   const ny = dx;
+  // Frame extent along the ruling normal — the actual in-frame span the
+  // offsets should cover, not the diagonal (which over-spreads whenever the
+  // normal isn't itself diagonal, e.g. angle 0 where the normal is the y
+  // axis and the in-frame extent is just 1).
+  const extent = Math.abs(nx) * aspect + Math.abs(ny);
   const paths = [];
   for (let i = 0; i < count; i++) {
     const u = count === 1 ? 0.5 : i / (count - 1);
-    const off = (from + u * (to - from) - 0.5) * diag;
+    const off = (from + u * (to - from) - 0.5) * extent;
     const pts = new Float32Array(samples * 2);
     for (let j = 0; j < samples; j++) {
       const s = (j / (samples - 1) - 0.5) * diag;
