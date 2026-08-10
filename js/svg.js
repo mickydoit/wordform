@@ -52,7 +52,7 @@ export function buildSVG(strands, opts) {
     ramp,
     colourway = 'print',
     epsilon = 0.0008,
-    strokeScale = 1,
+    strokeScale = 0.0016 * height,
     sections = null,
   } = opts;
 
