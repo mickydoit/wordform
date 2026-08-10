@@ -33,7 +33,7 @@ out vec4 outColor;
 void main() {
   // Soft falloff across the stroke width. This is what gives the blurred
   // slat quality of the references — hard edges read as harsh.
-  float a = smoothstep(1.0, 0.35, abs(v_across) * 2.0);
+  float a = 1.0 - smoothstep(0.35, 1.0, abs(v_across) * 2.0);
   outColor = vec4(v_color.rgb * v_color.a * a, v_color.a * a);
 }`;
 
