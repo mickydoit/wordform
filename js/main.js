@@ -50,7 +50,8 @@ if (typeof document !== 'undefined') {
     const w = Math.round(h * preset.aspect);
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
-    renderer.resize(w, h);
+    const dpr = window.devicePixelRatio || 1;
+    renderer.resize(Math.round(w * dpr), Math.round(h * dpr));
     renderer.draw();
   }
 
