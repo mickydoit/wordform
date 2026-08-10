@@ -16,6 +16,12 @@ function perpDistance(px, py, ax, ay, bx, by) {
   return Math.abs(dy * px - dx * py + bx * ay - by * ax) / len;
 }
 
+/**
+ * Exported only so tests can exercise it directly. It has NO closed-loop
+ * guard — calling it on a ring reproduces the exact collapse this module
+ * exists to prevent (see the file comment above). Callers should use
+ * `simplify()` instead, which dispatches to this safely.
+ */
 export function rdp(pts, eps) {
   const n = pts.length / 2;
   if (n < 3) return pts;
