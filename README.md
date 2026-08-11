@@ -76,8 +76,7 @@ whose width, luminosity and colour follow `|F|`, and which **break** where `|F|`
 cutoff. Those breaks carve the dark voids that make the thing read as an artwork rather than a
 diagram.
 
-Two details that are load-bearing, both learned the hard way on
-[Soundform](https://github.com/mickydoit/soundform):
+Two details that are load-bearing, both learned the hard way:
 
 - The amplitude is smoothed over a 15-sample window *before* thresholding. Thresholding the raw
   field shatters every rule into hundreds of one-sample islands.
@@ -133,5 +132,3 @@ animators sat with a passage, free-associated, and committed to one association 
 duration — *Pines of Rome* rode a single doodle for eight minutes. The consequence here: the
 unit of visual change is the paragraph, not the word. Nothing responds to a single word, and
 theme changes take 6–8 seconds.
-
-Sibling project: [Soundform](https://github.com/mickydoit/soundform).
